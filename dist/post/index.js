@@ -27594,6 +27594,33 @@ const SKIPPED_FILES = [
     ".rustc_info.json",
 ];
 /**
+ * Returns the path to the `target` directory based on the action's inputs.
+ *
+ * If `target-path` is provided, it is used directly and Cargo is not needed. Otherwise, Cargo is
+ * used to locate the workspace from `manifest-path`. When neither input is provided, `Cargo.toml`
+ * in the current working directory is used, preserving the historical default.
+ */
+function locateTargetFromInputs() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const manifestPath = core.getInput("manifest-path");
+        const targetPath = core.getInput("target-path");
+        if (targetPath) {
+            if (manifestPath) {
+                throw new Error("Only one of `manifest-path` and `target-path` may be provided.");
+            }
+            core.info(`Using \`target\` directory ${targetPath}.`);
+            // Relative paths are resolved from the action's working directory, which is the workspace
+            // root on GitHub Actions runners.
+            return external_path_.resolve(targetPath);
+        }
+        // `manifest-path` used to have a default of `Cargo.toml` in `action.yml`. Keep that behavior
+        // for workflows which don't provide either input.
+        const effectiveManifestPath = manifestPath || "Cargo.toml";
+        core.info(`Locating \`target\` folder from ${effectiveManifestPath}.`);
+        return locateTarget(effectiveManifestPath);
+    });
+}
+/**
  * Returns the path to the `target` directory of the current Cargo project.
  */
 function locateTarget(manifestPath) {
@@ -27655,10 +27682,8 @@ function main() {
     return __awaiter(this, void 0, void 0, function* () {
         const stamp = Number(core.getState("timestamp"));
         core.info(`Using timestamp: ${new Date(stamp)}.`);
-        const manifestPath = core.getInput("manifest-path", { required: true });
-        core.info(`Locating \`target\` folder from ${manifestPath}.`);
         // Find `target` folder.
-        const targetPath = yield locateTarget(manifestPath);
+        const targetPath = yield locateTargetFromInputs();
         try {
             yield promises_namespaceObject.access(targetPath);
         }
